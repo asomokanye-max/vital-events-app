@@ -1,0 +1,14 @@
+{
+  "name": "Vital Events Notifier: births and deaths for civil registration",
+  "short_name": "Vital Events",
+  "description": "Turns facility registers and community reports into checked birth and death notifications for civil registration (pilot).",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#8A4B0F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
