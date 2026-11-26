@@ -130,6 +130,10 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
     <p class="hint">Approve new accounts and set their role. <b>Notifier</b>: facility records staff (set LGA and facility name). <b>Informant</b>: community informant (set LGA and community or ward). <b>Registrar</b>: civil registration registrar for one LGA (set LGA). <b>Pending</b>: no access. Users of the other IPH tools are listed separately; their roles are not changed here.</p>
     <div style="margin:6px 0"><label style="display:inline"><input type="checkbox" id="uAll"> Show users of the other tools too</label></div>
     <div id="users" class="hint">…</div>
+    <h3 style="margin-top:16px">Clear test data</h3>
+    <p class="hint">Deletes every event saved with "This is test data" ticked. Real events are never touched. Use this before starting a new test, and before real use begins.</p>
+    <div class="row"><div><label for="clr">Type DELETE TEST to confirm</label><input id="clr" autocomplete="off"></div></div>
+    <div class="btns"><button class="sec" id="doClr">Delete all test events</button></div><div id="clrMsg" class="hint"></div>
   </section>
 
   <section id="tMatch" class="card hidden">
@@ -141,7 +145,7 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
   </section>
 </div>
 </main>
-<footer>Vital Events Notifier pilot v0.3 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
+<footer>Vital Events Notifier pilot v0.3.1 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -437,6 +441,10 @@ $("doMatch").onclick=async()=>{
 const VEN_ROLES=["pending","notifier","informant","registrar"];
 let LGAS=[];
 $("uAll").onchange=()=>loadUsers();
+$("doClr").onclick=async()=>{if($("clr").value.trim()!=="DELETE TEST"){$("clrMsg").innerHTML='<span class="err">Type DELETE TEST exactly.</span>';return;}
+  if(!confirm("Delete all test events? This cannot be undone."))return;
+  const {data,error}=await db.rpc("ven_clear_test",{p_confirm:"DELETE TEST"});
+  $("clrMsg").innerHTML=error?'<span class="err">'+esc(error.message)+'</span>':`<span class="good">${data} test event(s) deleted.</span>`;$("clr").value="";loadList();};
 async function loadUsers(){
   if(!LGAS.length){const {data}=await db.from("lgas").select("*").order("code");LGAS=data||[];}
   const {data,error}=await db.rpc("admin_users");
