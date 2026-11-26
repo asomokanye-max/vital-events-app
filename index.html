@@ -40,7 +40,7 @@ table.g th{background:#f0f3f7;font-weight:600;font-size:.8rem}
 table.g input{padding:7px;text-align:center;font-size:1rem}
 input.low{background:var(--ambbg);border-color:#d9a400}
 input.bad{background:var(--redbg);border-color:var(--red)}
-input.chg{outline:2px solid #2E75B6}
+input.chg,select.chg{outline:2px solid #2E75B6}
 .flag{border-left:4px solid var(--red);background:var(--redbg);padding:8px 10px;border-radius:6px;margin-bottom:6px;font-size:.9rem}
 .flag.warn{border-color:#d9a400;background:var(--ambbg)}
 .ok{border-left:4px solid var(--grn);background:var(--grnbg);padding:8px 10px;border-radius:6px;font-size:.9rem}
@@ -141,7 +141,7 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
   </section>
 </div>
 </main>
-<footer>Vital Events Notifier pilot v0.2 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
+<footer>Vital Events Notifier pilot v0.3 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -223,6 +223,11 @@ $("mMsg").onclick=()=>{if(!areaOk())return;$("msgBox").classList.remove("hidden"
 $("mType").onclick=()=>{if(!areaOk())return;$("typeBox").classList.remove("hidden");$("msgBox").classList.add("hidden");};
 $("tB").onclick=()=>{SRC="register_typed";MODEL=null;ROWS=[blank("birth")];drawWork();};
 $("tD").onclick=()=>{SRC="register_typed";MODEL=null;ROWS=[blank("death")];drawWork();};
+const FIELDS=["date_text","mother_name","mother_age","address","sex","weight","person_name","age_text","cause"];
+function snap(r){r.ai={};FIELDS.forEach(f=>r.ai[f]=String(r[f]??""));return r;}
+const vnorm=(f,v)=>f==="sex"?(sexOf(v)||""):String(v??"").trim().toLowerCase();
+function changed(r,f){return !!r.ai&&vnorm(f,r.ai[f])!==vnorm(f,r[f]);}
+function corrections(r){return r.ai?FIELDS.filter(f=>changed(r,f)).map(f=>({field:f,ai:r.ai[f],final:String(r[f]??"")})):[];}
 function blank(kind){return {kind,date_text:"",mother_name:"",mother_age:"",address:"",sex:"",weight:"",outcome:kind==="birth"?"Alive":"",person_name:"",age_text:"",cause:"",place_of_event:SRC==="community_report"?"home":"facility",informant_name:"",c:"high",issues:[],dup:false,twin:false,note:""};}
 $("photo").onchange=async()=>{
   const f=$("photo").files[0];if(!f)return;$("photo").value="";
@@ -234,7 +239,7 @@ $("photo").onchange=async()=>{
     ROWS=(r.data.rows||[]).map(x=>Object.assign(blank(KIND),{
       date_text:x.date_text||(x.date?fmt(x.date):""),mother_name:x.mother_name||"",mother_age:x.mother_age??"",address:x.address||"",
       sex:x.sex||"",weight:x.weight_kg??"",outcome:x.outcome||"",person_name:x.person_name||"",age_text:x.age_text||"",cause:x.cause||"",
-      place_of_event:"facility",c:x.c==="low"?"low":"high",sn:x.sn||""}));
+      place_of_event:"facility",c:x.c==="low"?"low":"high",sn:x.sn||""})).map(snap);
     $("addMsg").innerHTML=`<span class="hint">${ROWS.length} row(s) read. Compare each row with the register page and correct any misread value before checking. ${r.data.notes?"AI note: "+esc(r.data.notes):""}</span>`;
     drawWork();
   }catch(e){$("addMsg").innerHTML='<span class="err">'+esc(e.message)+'</span>';}
@@ -249,7 +254,7 @@ $("parse").onclick=async()=>{
   ROWS=(r.data.events||[]).map(x=>Object.assign(blank(x.event_type==="death"?"death":"birth"),{
     date_text:x.date?fmt(x.date):(x.date_text||""),mother_name:x.mother_name||"",address:x.address||"",sex:x.sex||"",
     person_name:x.person_name||(x.event_type==="death"?(x.known_as||""):""),age_text:x.age_text||"",place_of_event:x.place_of_event||"unknown",informant_name:x.informant||"",
-    outcome:x.event_type==="death"?"":"Alive",c:"high",aiIssues:(x.issues||[]).filter(Boolean),known_as:x.known_as||""}));
+    outcome:x.event_type==="death"?"":"Alive",c:"high",aiIssues:(x.issues||[]).filter(Boolean),known_as:x.known_as||""})).map(snap);
   $("addMsg").innerHTML=`<span class="hint">Language: ${esc(r.data.language||"–")}. Translation: <i>${esc(r.data.translation||"")}</i></span>`;
   drawWork();
 };
@@ -257,8 +262,8 @@ $("parse").onclick=async()=>{
 // ================= the working table =================
 function drawWork(){
   const births=ROWS.map((r,i)=>[r,i]).filter(([r])=>r.kind==="birth"),deaths=ROWS.map((r,i)=>[r,i]).filter(([r])=>r.kind==="death");
-  const inp=(i,f,w)=>`<input data-i="${i}" data-f="${f}" value="${esc(ROWS[i][f])}" style="width:${w||100}px" class="${ROWS[i].c==="low"?"low":""}">`;
-  const sexSel=i=>`<select data-i="${i}" data-f="sex"><option value="">–</option>${["female","male","unknown"].map(s=>`<option ${sexOf(ROWS[i].sex)===s?"selected":""} value="${s}">${s[0].toUpperCase()+s.slice(1)}</option>`).join("")}</select>`;
+  const inp=(i,f,w)=>`<input data-i="${i}" data-f="${f}" value="${esc(ROWS[i][f])}" style="width:${w||100}px" class="${ROWS[i].c==="low"&&!changed(ROWS[i],f)?"low":""} ${changed(ROWS[i],f)?"chg":""}">`;
+  const sexSel=i=>`<select data-i="${i}" data-f="sex" class="${changed(ROWS[i],"sex")?"chg":""}"><option value="">–</option>${["female","male","unknown"].map(s=>`<option ${sexOf(ROWS[i].sex)===s?"selected":""} value="${s}">${s[0].toUpperCase()+s.slice(1)}</option>`).join("")}</select>`;
   const iss=r=>r.issues.length?r.issues.map(x=>`<div class="flag ${x.s==="warn"?"warn":x.s==="info"?"info":""}" style="margin:2px 0;padding:4px 6px">${esc(x.m)}</div>`).join(""):(r.checked?'<span class="good">OK</span>':"");
   const dupBox=i=>`<label style="font-size:.75rem"><input type="checkbox" data-i="${i}" data-f="dup" ${ROWS[i].dup?"checked":""}> duplicate</label>`;
   let h="";
@@ -272,7 +277,9 @@ function drawWork(){
   else h+=`<div class="btns"><button id="check">Check</button><button class="sec" id="addRow">Add a row</button><button id="save" ${ROWS.some(r=>r.checked)?"":"disabled"}>Save as notified</button></div><div id="wMsg" class="hint"></div>`;
   $("work").innerHTML=h;
   document.querySelectorAll("#work [data-i]").forEach(el=>el.onchange=()=>{const r=ROWS[+el.dataset.i];
-    if(el.dataset.f==="dup")r.dup=el.checked;else r[el.dataset.f]=el.value;r.checked=false;const s=$("save");if(s)s.disabled=true;});
+    if(el.dataset.f==="dup"){r.dup=el.checked;el.closest("tr").classList.toggle("dup",r.dup);return;}
+    r[el.dataset.f]=el.value;r.checked=false;const s=$("save");if(s)s.disabled=true;
+    if(el.dataset.f!=="dup")el.classList.toggle("chg",changed(r,el.dataset.f));});
   const c=$("check");if(c)c.onclick=()=>{checkAll();drawWork();};
   const a=$("addRow");if(a)a.onclick=()=>{ROWS.push(blank(ROWS[ROWS.length-1].kind));drawWork();};
   const s=$("save");if(s)s.onclick=save;
@@ -323,11 +330,12 @@ function checkAll(){
     const bIso=b.iso||b.event_date;if(bIso&&d.iso){const days=daysBetween(bIso,d.iso);const stated=parseFloat(d.age_text);
       d.issues.push({s:"info",m:`Linked to the birth to ${m[1]} on ${fmt(bIso)}: age at death ${days} day(s)${!isNaN(stated)&&/day/i.test(d.age_text)&&Math.abs(stated-days)>0?`, but the register says ${d.age_text}`:""}. Both the birth and the death need registering.`});}
     d.linkTo=b;});
-  ROWS.forEach(r=>{if(r.autoDup&&r.dup===false&&r.dupAuto===undefined){r.dup=true;r.dupAuto=true;}});
 }
 
 // ================= save =================
 async function save(){
+  const nDup=ROWS.filter(r=>r.dup).length,nNot=ROWS.length-nDup;
+  if(nDup&&!confirm(`${nDup} row(s) are ticked as duplicate and will NOT be notified; ${nNot} will be notified. Continue?`))return;
   const bad=ROWS.filter(r=>!r.dup&&r.issues.some(x=>x.s==="error"));
   if(bad.length&&!confirm(`${bad.length} row(s) still have errors. Save them anyway as notified (to be corrected later)? Choose Cancel to fix them first.`))return;
   const ev=ROWS.map(r=>({event_type:r.kind,source:SRC,place_of_event:r.place_of_event,event_date:r.iso||"",event_date_text:r.date_text,
@@ -336,12 +344,15 @@ async function save(){
     birth_weight:!isNaN(parseFloat(r.weight))?parseFloat(r.weight):"",outcome:r.outcome,
     age_value:r.kind==="death"&&!isNaN(parseFloat(r.age_text))?parseFloat(r.age_text):"",
     age_unit:r.kind==="death"?(/day/i.test(r.age_text)?"days":/month/i.test(r.age_text)?"months":/hour/i.test(r.age_text)?"hours":(parseFloat(r.age_text)?"years":"")):"",
-    cause_text:r.cause,multiple_birth:!!r.twin,flags:r.issues,status:r.dup?"duplicate":"notified",synthetic:$("synth").checked,model:MODEL||""}));
+    cause_text:r.cause,multiple_birth:!!r.twin,flags:r.issues,status:r.dup?"duplicate":"notified",synthetic:$("synth").checked,model:MODEL||"",
+    ai_read:r.ai||null,corrections:corrections(r)}));
+  const read=ROWS.filter(r=>r.ai),vals=read.reduce((n,r)=>n+FIELDS.filter(f=>String(r.ai[f]||"").trim()||String(r[f]||"").trim()).length,0),fix=read.reduce((n,r)=>n+corrections(r).length,0);
   $("save").disabled=true;
   const {data,error}=await db.rpc("ven_save",{p_events:ev});
   if(error){$("wMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';$("save").disabled=false;return;}
   const nd=ROWS.filter(r=>r.dup).length;
-  $("work").innerHTML=`<div class="ok">Saved: ${data-nd} event(s) notified${nd?`, ${nd} kept as duplicate (not counted)`:""}. They now appear on the registrar's list.</div>`;
+  $("work").innerHTML=`<div class="ok">Saved: ${data-nd} event(s) notified${nd?`, ${nd} kept as duplicate (not counted)`:""}. They now appear on the registrar's list.
+    ${read.length?`<br>AI reading: <b>${vals-fix} of ${vals}</b> filled values read correctly${vals?` (${Math.round(100*(vals-fix)/vals)}%)`:""}; <b>${fix}</b> corrected by you, and the corrections are recorded.`:""}</div>`;
   ROWS=[];$("ph").classList.add("hidden");$("msg").value="";loadList();
 }
 
@@ -357,6 +368,8 @@ function filtered(){const t=$("fType").value,s=$("fStat").value;return LIST.filt
 function drawList(){
   const n=(t,s)=>LIST.filter(e=>e.event_type===t&&(!s||e.status===s)).length;
   $("sum").innerHTML=LIST.length?`Births: ${n("birth","notified")+n("birth","registered")} notified, ${n("birth","registered")} registered, <b>${n("birth","notified")} still to register</b>. Deaths: ${n("death","notified")+n("death","registered")} notified, ${n("death","registered")} registered, <b>${n("death","notified")} still to register</b>.`:"";
+  const R=LIST.filter(e=>e.ai_read);if(R.length){const v=R.reduce((n,e)=>n+FIELDS.filter(f=>String(e.ai_read[f]||"").trim()).length,0),c=R.reduce((n,e)=>n+(e.corrections||[]).length,0);
+    $("sum").innerHTML+=`<br>AI reading so far: ${R.length} event(s) read by AI; <b>${c}</b> value(s) corrected by staff${v?` (about ${Math.max(0,Math.round(100*(v-c)/v))}% read correctly)`:""}.`;}
   const L=filtered();
   if(!L.length){$("list").textContent="No events.";return;}
   $("list").innerHTML=`<div class="scroll"><table class="e"><tr><th>Type</th><th>Date</th><th>Name</th><th>Sex</th><th>Place</th><th>Status</th><th></th></tr>${L.map(e=>`<tr>
@@ -364,7 +377,7 @@ function drawList(){
     <td>${e.event_date?fmt(e.event_date):'<span class="err">'+esc(e.event_date_text||"?")+'</span>'}</td>
     <td>${e.purged_at?'<span class="hint">erased</span>':esc(e.event_type==="birth"?"Baby of "+(e.mother_name||"?"):(e.person_name||"?"))}</td>
     <td>${esc((e.sex||"").slice(0,1).toUpperCase())}</td><td>${esc(e.place||"")}<div class="hint">${esc(e.source.replace("_"," "))}</div></td>
-    <td>${esc(STAT[e.status]||e.status)}${e.npc_reg_no?"<div class='hint'>"+esc(e.npc_reg_no)+"</div>":""}${(e.flags||[]).some(f=>f.s==="error")&&e.status==="notified"?' <span class="pill">needs correction</span>':""}</td>
+    <td>${esc(STAT[e.status]||e.status)}${e.npc_reg_no?"<div class='hint'>"+esc(e.npc_reg_no)+"</div>":""}${(e.flags||[]).some(f=>f.s==="error")&&e.status==="notified"?' <span class="pill">needs correction</span>':""}${(e.corrections||[]).length?' <span class="pill">AI reading corrected</span>':""}</td>
     <td><button class="sec" data-ev="${e.id}" style="padding:5px 9px">Open</button></td></tr>`).join("")}</table></div>`;
   document.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEv(b.dataset.ev));
 }
@@ -374,6 +387,7 @@ function openEv(id){
   const rows=[["Type",e.event_type],["Date",e.event_date?fmt(e.event_date):e.event_date_text],["Name",e.person_name],["Mother",e.mother_name],["Age",e.age_value!=null?e.age_value+" "+(e.age_unit||""):(e.mother_age!=null?"mother "+e.mother_age:"")],
     ["Sex",e.sex],["Address",e.address],["Place",(e.place||"")+" ("+(e.place_of_event||"")+")"],["Cause (as written)",e.cause_text],["Informant",e.informant_name],["Status",STAT[e.status]+(e.npc_reg_no?" · "+e.npc_reg_no:"")]].filter(r=>r[1]);
   $("evPanel").innerHTML=`<div class="ev" style="margin-top:10px"><h3 style="margin:0 0 6px">Event</h3><table class="e">${rows.map(r=>`<tr><th style="width:130px">${r[0]}</th><td>${esc(r[1])}</td></tr>`).join("")}</table>
+    ${(e.corrections||[]).length?`<div class="flag info" style="padding:4px 6px;margin-top:6px"><b>Corrected from the AI reading:</b> ${e.corrections.map(c=>`${esc(c.field.replace("_text",""))}: ${c.ai!==undefined?`"${esc(c.ai)}" → "${esc(c.final)}"`:"changed"}`).join("; ")}</div>`:""}
     ${(e.flags||[]).length?`<div style="margin-top:6px">${e.flags.map(f=>`<div class="flag ${f.s==="warn"?"warn":f.s==="info"?"info":""}" style="padding:4px 6px">${esc(f.m)}</div>`).join("")}</div>`:""}
     ${e.purged_at?"":`<div class="row" style="margin-top:8px"><div><label for="rl">Reminder language</label><select id="rl">${COUNTRY.languages.map(l=>`<option>${l}</option>`).join("")}<option>French</option></select></div><div><label for="rp">Registration point (optional)</label><input id="rp" placeholder="e.g. NPC office, LGA secretariat"></div></div>
     <div class="btns"><button class="sec" id="rem">Draft a reminder</button></div><div id="remOut"></div>`}
@@ -399,6 +413,7 @@ $("doMatch").onclick=async()=>{
   const lines=$("reg").value.split(/\n/).map(l=>l.trim()).filter(Boolean);
   if(!lines.length){$("matchOut").innerHTML='<span class="err">Paste the registration list first.</span>';return;}
   const registered=lines.map(l=>{const p=l.split(/\t|,/).map(x=>x.trim());return {reg_no:p[0],type:(p[1]||"").toLowerCase().startsWith("d")?"death":"birth",sex:p[2],date:p[3],name:p.slice(4).join(" ")};});
+  $("matchOut").innerHTML='<span class="hint">Loading the latest events…</span>';await loadList();
   const open=LIST.filter(e=>e.status==="notified"&&!e.purged_at);
   if(!open.length){$("matchOut").innerHTML='<span class="hint">There are no notified events waiting for registration.</span>';return;}
   const notified=open.map(e=>({id:e.id,type:e.event_type,date:e.event_date?fmt(e.event_date):e.event_date_text,sex:e.sex,mother:e.mother_name,name:e.person_name,twins:e.multiple_birth}));
