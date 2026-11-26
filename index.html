@@ -125,6 +125,13 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
     <div id="evPanel"></div>
   </section>
 
+  <section id="tUsers" class="card hidden">
+    <h2>Users and roles</h2>
+    <p class="hint">Approve new accounts and set their role. <b>Notifier</b>: facility records staff (set LGA and facility name). <b>Informant</b>: community informant (set LGA and community or ward). <b>Registrar</b>: civil registration registrar for one LGA (set LGA). <b>Pending</b>: no access. Users of the other IPH tools are listed separately; their roles are not changed here.</p>
+    <div style="margin:6px 0"><label style="display:inline"><input type="checkbox" id="uAll"> Show users of the other tools too</label></div>
+    <div id="users" class="hint">…</div>
+  </section>
+
   <section id="tMatch" class="card hidden">
     <h2>Match with the registration list</h2>
     <p class="hint">Paste the registrar's list of events already registered: one per line, with registration number, type (birth/death), sex, date and name (mother's name for births), separated by commas or tabs. The AI matches them to the notified events despite spelling differences; you confirm each match before it is recorded.</p>
@@ -134,7 +141,7 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
   </section>
 </div>
 </main>
-<footer>Vital Events Notifier pilot v0.1 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
+<footer>Vital Events Notifier pilot v0.2 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -193,13 +200,14 @@ async function start(){
   if(["notifier","informant","admin"].includes(ME.role))tabs.push(["tAdd","Add events"]);
   tabs.push(["tList","Events"]);
   if(["registrar","admin"].includes(ME.role))tabs.push(["tMatch","Match with registration list"]);
+  if(ME.role==="admin")tabs.push(["tUsers","Users"]);
   $("tabs").innerHTML=tabs.map(([id,l],i)=>`<button data-t="${id}" class="${i?"":"on"}">${l}</button>`).join("");
   document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>show(b.dataset.t));
   show(tabs[0][0]);
   if(ME.role==="informant"){$("mBirth").classList.add("hidden");$("mDeath").classList.add("hidden");}
   loadList();
 }
-function show(id){["tAdd","tList","tMatch"].forEach(t=>$(t).classList.toggle("hidden",t!==id));document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===id));if(id==="tList")loadList();}
+function show(id){["tAdd","tList","tMatch","tUsers"].forEach(t=>$(t).classList.toggle("hidden",t!==id));document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===id));if(id==="tList")loadList();if(id==="tUsers")loadUsers();}
 async function errMsg(data,error){let m=data&&data.error;if(!m&&error){try{m=(await error.context.json()).error;}catch(e){m=error.message;}}if(!m&&!data)m="no reply";return m||null;}
 function shrink(file,max){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);
   img.onload=()=>{let w=img.width,h=img.height;const s=Math.min(1,max/Math.max(w,h));w=Math.round(w*s);h=Math.round(h*s);
@@ -410,6 +418,34 @@ $("doMatch").onclick=async()=>{
       const {error}=await db.rpc("ven_set_status",{p_id:x.id,p_status:"registered",p_reg_no:x.reg_no,p_note:"matched to registration list"});if(!error)ok++;}
     $("mMsg").innerHTML=`<span class="good">${ok} event(s) recorded as registered.</span>`;ap.disabled=true;loadList();};
 };
+// ================= users (admin only) =================
+const VEN_ROLES=["pending","notifier","informant","registrar"];
+let LGAS=[];
+$("uAll").onchange=()=>loadUsers();
+async function loadUsers(){
+  if(!LGAS.length){const {data}=await db.from("lgas").select("*").order("code");LGAS=data||[];}
+  const {data,error}=await db.rpc("admin_users");
+  if(error){$("users").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
+  const all=$("uAll").checked;
+  const U=(data||[]).filter(u=>all||VEN_ROLES.includes(u.role)||u.user_id===ME.user_id);
+  const other=(data||[]).filter(u=>!VEN_ROLES.includes(u.role)&&u.user_id!==ME.user_id).length;
+  $("users").innerHTML=`<div class="scroll"><table class="e"><tr><th>Email</th><th>Name</th><th>Role</th><th>LGA</th><th>Facility / community</th><th></th></tr>${U.map(u=>{
+    const mine=u.user_id===ME.user_id,ven=VEN_ROLES.includes(u.role);
+    const opts=(ven?VEN_ROLES:[u.role,...VEN_ROLES]).map(r=>`<option ${r===u.role?"selected":""} value="${r}">${r}${!VEN_ROLES.includes(r)?" (other tool)":""}</option>`).join("");
+    return `<tr><td>${esc(u.email)}${u.role==="pending"?' <span class="pill">new</span>':""}</td>
+    <td><input id="un-${u.user_id}" value="${esc(u.full_name||"")}" style="width:140px"></td>
+    <td>${mine?"admin":`<select id="ur-${u.user_id}">${opts}</select>`}</td>
+    <td>${mine?"–":`<select id="ul-${u.user_id}"><option value="">–</option>${LGAS.map(l=>`<option value="${l.code}" ${l.code===u.lga?"selected":""}>${esc(l.name)}</option>`).join("")}</select>`}</td>
+    <td>${mine?"–":`<input id="uf-${u.user_id}" value="${esc(u.facility||"")}" style="width:140px" placeholder="facility or community">`}</td>
+    <td>${mine?"":`<button class="sec" data-us="${u.user_id}" style="padding:5px 9px">Save</button> <span id="us-${u.user_id}" class="hint"></span>`}</td></tr>`;}).join("")}</table></div>
+    ${!all&&other?`<p class="hint">${other} user(s) of the other tools are hidden.</p>`:""}`;
+  document.querySelectorAll("[data-us]").forEach(b=>b.onclick=async()=>{const id=b.dataset.us,role=$("ur-"+id).value,lga=$("ul-"+id).value||null,fac=$("uf-"+id).value.trim();
+    if(["notifier","informant","registrar"].includes(role)&&!lga){$("us-"+id).innerHTML='<span class="err">Choose an LGA</span>';return;}
+    if(["notifier","informant"].includes(role)&&!fac){$("us-"+id).innerHTML='<span class="err">Enter the facility or community</span>';return;}
+    let {error}=await db.rpc("admin_set_role",{p_user:id,p_role:role,p_lga:lga,p_name:$("un-"+id).value});
+    if(!error){const r2=await db.rpc("admin_set_facility",{p_user:id,p_facility:fac});error=r2.error;}
+    $("us-"+id).innerHTML=error?'<span class="err">'+esc(error.message)+'</span>':'<span class="good">Saved. They should log out and in again.</span>';});
+}
 start();
 if(navigator.serviceWorker&&navigator.serviceWorker.register)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
