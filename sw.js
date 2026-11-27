@@ -2,7 +2,7 @@
 // Pages, icons and the Supabase library are kept on the phone and refreshed from the
 // network whenever possible. Requests to the database (supabase.co) are NEVER stored,
 // so names and events are never kept on the device.
-const CACHE = "ven-v0.3.1";
+const CACHE = "ven-v0.4";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"];
 self.addEventListener("install", e => {

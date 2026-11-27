@@ -17,7 +17,7 @@ header{background:var(--blue);color:#fff;padding:12px 16px;display:flex;justify-
 header h1{margin:0;font-size:1.15rem}
 header .who{font-size:.8rem}
 header a{color:#fff}
-main{max-width:760px;margin:0 auto;padding:14px}
+main{max-width:1100px;margin:0 auto;padding:14px}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
 .hidden{display:none!important}
 h2{font-size:1.05rem;margin:2px 0 10px}
@@ -72,6 +72,14 @@ table.e tr.dup td{background:#f1f1f1;color:#888}
 .flag.info{border-color:#2E75B6;background:#eaf2fb}
 textarea{font-size:1rem;padding:8px 10px;border:1px solid #b9c3cf;border-radius:8px;font-family:inherit;width:100%}
 footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr);gap:12px;align-items:start}
+.split .phcol{position:sticky;top:8px}
+.split .phcol img{width:100%;border:1px solid var(--line);border-radius:8px}
+@media (max-width:900px){.split{display:block}.split .phcol{position:static;margin-bottom:8px}}
+.rowctl{font-size:.75rem;display:block;margin-top:3px}
+.flag.follow{border-color:#7a5c99;background:#f3eefa}
+tr.conf td{background:#f3faf4}
+.tip{border-left:4px solid #2E75B6;background:#eaf2fb;padding:6px 10px;border-radius:6px;font-size:.85rem;margin:6px 0}
 </style>
 </head>
 <body>
@@ -102,6 +110,7 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
       <button id="mBirth">Photo of birth register</button><button id="mDeath">Photo of death register</button>
       <button class="sec" id="mMsg">Community report</button><button class="sec" id="mType">Type an event</button>
     </div>
+    <div class="tip"><b>Photo tips:</b> one register page per photo, page upright (not sideways), phone held straight above it, good light, the whole page filling the screen.</div>
     <input id="photo" type="file" accept="image/*" capture="environment" class="hidden">
     <div id="msgBox" class="hidden" style="margin-top:8px">
       <label for="msg">Paste or type the report exactly as received (any language)</label><textarea id="msg" rows="4"></textarea>
@@ -118,7 +127,7 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
   <section id="tList" class="card hidden">
     <h2>Events</h2>
     <div class="row"><div><label for="fType">Type</label><select id="fType"><option value="">All</option><option value="birth">Births</option><option value="death">Deaths</option></select></div>
-      <div><label for="fStat">Status</label><select id="fStat"><option value="open">Not yet registered</option><option value="">All</option><option value="registered">Registered</option><option value="duplicate">Duplicate</option><option value="closed">Closed</option></select></div></div>
+      <div><label for="fStat">Status</label><select id="fStat"><option value="open">Not yet registered</option><option value="draft">Needs follow-up</option><option value="">All</option><option value="registered">Registered</option><option value="duplicate">Duplicate</option><option value="closed">Closed</option></select></div></div>
     <div id="sum" class="hint" style="margin-top:6px"></div>
     <div id="list" class="hint">…</div>
     <div class="btns"><button class="sec" id="csv">Download list (CSV)</button></div>
@@ -145,7 +154,7 @@ footer{text-align:center;font-size:.72rem;color:var(--mut);padding:10px 14px 24p
   </section>
 </div>
 </main>
-<footer>Vital Events Notifier pilot v0.3.1 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
+<footer>Vital Events Notifier pilot v0.4 · Institute of Public Health, Obafemi Awolowo University, Ile-Ife · Feeds, and does not replace, the national civil registration system · Personal details erased 90 days after registration or closure · Photos are not stored</footer>
 
 <script>
 const SUPABASE_URL="https://xzwjhbepttecghwvoogz.supabase.co";
@@ -172,7 +181,7 @@ const daysBetween=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000);
 function sexOf(v){v=String(v||"").trim().toLowerCase();return /^(f|female|girl|obinrin|omobinrin)$/.test(v)?"female":/^(m|male|boy|okunrin|omokunrin)$/.test(v)?"male":v==="unknown"?"unknown":"";}
 
 // ================= state =================
-let ME=null,ROWS=[],KIND=null,SRC=null,LIST=[],MODEL=null;
+let ME=null,ROWS=[],KIND=null,SRC=null,LIST=[],MODEL=null,PHOTO=null,QUALITY=null;
 // ROWS: [{kind:'birth'|'death', date_text, mother_name, mother_age, address, sex, weight, outcome, person_name, age_text, cause, place_of_event, informant_name, c, issues:[], dup:false, twin:false, note}]
 
 // ================= auth =================
@@ -225,26 +234,33 @@ $("mBirth").onclick=()=>{if(!areaOk())return;KIND="birth";$("photo").click();};
 $("mDeath").onclick=()=>{if(!areaOk())return;KIND="death";$("photo").click();};
 $("mMsg").onclick=()=>{if(!areaOk())return;$("msgBox").classList.remove("hidden");$("typeBox").classList.add("hidden");};
 $("mType").onclick=()=>{if(!areaOk())return;$("typeBox").classList.remove("hidden");$("msgBox").classList.add("hidden");};
-$("tB").onclick=()=>{SRC="register_typed";MODEL=null;ROWS=[blank("birth")];drawWork();};
-$("tD").onclick=()=>{SRC="register_typed";MODEL=null;ROWS=[blank("death")];drawWork();};
+$("tB").onclick=()=>{SRC="register_typed";MODEL=null;PHOTO=null;ROWS=[blank("birth")];drawWork();};
+$("tD").onclick=()=>{SRC="register_typed";MODEL=null;PHOTO=null;ROWS=[blank("death")];drawWork();};
 const FIELDS=["date_text","mother_name","mother_age","address","sex","weight","person_name","age_text","cause"];
 function snap(r){r.ai={};FIELDS.forEach(f=>r.ai[f]=String(r[f]??""));return r;}
+function canSave(){return ROWS.length&&ROWS.every(r=>r.checked)&&(SRC==="register_typed"||ROWS.every(r=>r.dup||r.conf))&&!ROWS.some(r=>!r.dup&&!r.unknown&&r.issues.some(x=>x.s==="error"));}
+function saveHint(){if(!ROWS.length)return "";if(!ROWS.every(r=>r.checked))return "Click Check after any change.";
+  if(SRC!=="register_typed"&&!ROWS.every(r=>r.dup||r.conf))return `Tick <b>Matches the ${SRC==="community_report"?"message":"paper"}</b> on every row after comparing it (${ROWS.filter(r=>r.dup||r.conf).length} of ${ROWS.length} done).`;
+  const e=ROWS.filter(r=>!r.dup&&!r.unknown&&r.issues.some(x=>x.s==="error")).length;
+  if(e)return `${e} row(s) still have errors. Correct them from the register, or, if the information is not known, tick <b>Some details not known: follow up</b>. Never guess a name or date.`;
+  const d=ROWS.filter(r=>r.unknown&&!r.dup).length;return d?`${d} row(s) will be saved as <b>needs follow-up</b> (not sent to the registrar until completed).`:"Ready to save.";}
+function updSave(){const s=$("save");if(s)s.disabled=!canSave();const m=$("wMsg");if(m)m.innerHTML=saveHint();}
 const vnorm=(f,v)=>f==="sex"?(sexOf(v)||""):String(v??"").trim().toLowerCase();
 function changed(r,f){return !!r.ai&&vnorm(f,r.ai[f])!==vnorm(f,r[f]);}
 function corrections(r){return r.ai?FIELDS.filter(f=>changed(r,f)).map(f=>({field:f,ai:r.ai[f],final:String(r[f]??"")})):[];}
-function blank(kind){return {kind,date_text:"",mother_name:"",mother_age:"",address:"",sex:"",weight:"",outcome:kind==="birth"?"Alive":"",person_name:"",age_text:"",cause:"",place_of_event:SRC==="community_report"?"home":"facility",informant_name:"",c:"high",issues:[],dup:false,twin:false,note:""};}
+function blank(kind){return {kind,date_text:"",mother_name:"",mother_age:"",address:"",sex:"",weight:"",outcome:kind==="birth"?"Alive":"",person_name:"",age_text:"",cause:"",place_of_event:SRC==="community_report"?"home":"facility",informant_name:"",c:"high",issues:[],dup:false,conf:false,unknown:false,twin:false,note:""};}
 $("photo").onchange=async()=>{
   const f=$("photo").files[0];if(!f)return;$("photo").value="";
   $("addMsg").innerHTML='<span class="hint">Reading the register page… (about 20 to 40 seconds)</span>';$("work").innerHTML="";
-  try{const {b64,url}=await shrink(f,2000);$("ph").src=url;$("ph").classList.remove("hidden");
+  try{const {b64,url}=await shrink(f,2000);PHOTO=url;
     const r=await db.functions.invoke("ven-ai",{body:{action:"read",kind:KIND,image:b64,media_type:"image/jpeg"}});
     const m=await errMsg(r.data,r.error);if(m){$("addMsg").innerHTML='<span class="err">Reading failed: '+esc(m)+'</span>';return;}
-    SRC="register_photo";MODEL=r.data.model;
+    SRC="register_photo";MODEL=r.data.model;QUALITY=r.data.page_quality||"ok";
     ROWS=(r.data.rows||[]).map(x=>Object.assign(blank(KIND),{
       date_text:x.date_text||(x.date?fmt(x.date):""),mother_name:x.mother_name||"",mother_age:x.mother_age??"",address:x.address||"",
       sex:x.sex||"",weight:x.weight_kg??"",outcome:x.outcome||"",person_name:x.person_name||"",age_text:x.age_text||"",cause:x.cause||"",
       place_of_event:"facility",c:x.c==="low"?"low":"high",sn:x.sn||""})).map(snap);
-    $("addMsg").innerHTML=`<span class="hint">${ROWS.length} row(s) read. Compare each row with the register page and correct any misread value before checking. ${r.data.notes?"AI note: "+esc(r.data.notes):""}</span>`;
+    $("addMsg").innerHTML=(QUALITY!=="ok"?`<div class="flag warn">The photo looks <b>${esc(QUALITY.replace("_"," "))}</b>. Readings may be wrong: consider retaking it upright and straight.</div>`:"")+`<span class="hint">${ROWS.length} row(s) read. Compare every row with the register page (photo on the left), correct any misread value, and tick <b>Matches the paper</b>. ${r.data.notes?"AI note: "+esc(r.data.notes):""}</span>`;
     drawWork();
   }catch(e){$("addMsg").innerHTML='<span class="err">'+esc(e.message)+'</span>';}
 };
@@ -254,7 +270,7 @@ $("parse").onclick=async()=>{
   $("addMsg").innerHTML='<span class="hint">Reading the report… (about 10 to 20 seconds)</span>';$("work").innerHTML="";$("ph").classList.add("hidden");
   const r=await db.functions.invoke("ven-ai",{body:{action:"parse",message:msg,reported:$("rdate").value}});
   const m=await errMsg(r.data,r.error);if(m){$("addMsg").innerHTML='<span class="err">Reading failed: '+esc(m)+'</span>';return;}
-  SRC="community_report";MODEL=r.data.model;
+  SRC="community_report";MODEL=r.data.model;PHOTO=null;
   ROWS=(r.data.events||[]).map(x=>Object.assign(blank(x.event_type==="death"?"death":"birth"),{
     date_text:x.date?fmt(x.date):(x.date_text||""),mother_name:x.mother_name||"",address:x.address||"",sex:x.sex||"",
     person_name:x.person_name||(x.event_type==="death"?(x.known_as||""):""),age_text:x.age_text||"",place_of_event:x.place_of_event||"unknown",informant_name:x.informant||"",
@@ -268,20 +284,27 @@ function drawWork(){
   const births=ROWS.map((r,i)=>[r,i]).filter(([r])=>r.kind==="birth"),deaths=ROWS.map((r,i)=>[r,i]).filter(([r])=>r.kind==="death");
   const inp=(i,f,w)=>`<input data-i="${i}" data-f="${f}" value="${esc(ROWS[i][f])}" style="width:${w||100}px" class="${ROWS[i].c==="low"&&!changed(ROWS[i],f)?"low":""} ${changed(ROWS[i],f)?"chg":""}">`;
   const sexSel=i=>`<select data-i="${i}" data-f="sex" class="${changed(ROWS[i],"sex")?"chg":""}"><option value="">–</option>${["female","male","unknown"].map(s=>`<option ${sexOf(ROWS[i].sex)===s?"selected":""} value="${s}">${s[0].toUpperCase()+s.slice(1)}</option>`).join("")}</select>`;
-  const iss=r=>r.issues.length?r.issues.map(x=>`<div class="flag ${x.s==="warn"?"warn":x.s==="info"?"info":""}" style="margin:2px 0;padding:4px 6px">${esc(x.m)}</div>`).join(""):(r.checked?'<span class="good">OK</span>':"");
-  const dupBox=i=>`<label style="font-size:.75rem"><input type="checkbox" data-i="${i}" data-f="dup" ${ROWS[i].dup?"checked":""}> duplicate</label>`;
+  const iss=r=>r.issues.length?r.issues.map(x=>`<div class="flag ${x.s==="warn"?"warn":x.s==="info"?"info":x.s==="follow"?"follow":""}" style="margin:2px 0;padding:4px 6px">${esc(x.m)}</div>`).join(""):(r.checked?'<span class="good">OK</span>':"");
+  const needConf=SRC!=="register_typed";
+  const dupBox=i=>`${needConf?`<label class="rowctl"><input type="checkbox" data-i="${i}" data-f="conf" ${ROWS[i].conf?"checked":""}> <b>Matches the ${SRC==="community_report"?"message":"paper"}</b></label>`:""}
+    <label class="rowctl"><input type="checkbox" data-i="${i}" data-f="unknown" ${ROWS[i].unknown?"checked":""}> Some details not known: follow up</label>
+    ${ROWS[i].unknown?`<input data-i="${i}" data-f="followwho" value="${esc(ROWS[i].followwho||"")}" placeholder="who to ask (family, ward, doctor)" style="width:180px;font-size:.78rem;padding:4px">`:""}
+    <label class="rowctl"><input type="checkbox" data-i="${i}" data-f="dup" ${ROWS[i].dup?"checked":""}> Copy of another row: do not notify</label>`;
   let h="";
-  if(births.length)h+=`<h3>Births</h3><div class="scroll"><table class="e"><tr><th>Date</th><th>Mother's name</th><th>Age</th><th>Address</th><th>Sex</th><th>Wt kg</th><th>Place</th><th>Check</th></tr>${births.map(([r,i])=>`<tr class="${r.dup?"dup":""}">
+  if(births.length)h+=`<h3>Births</h3><div class="scroll"><table class="e"><tr><th>Date</th><th>Mother's name</th><th>Age</th><th>Address</th><th>Sex</th><th>Wt kg</th><th>Place</th><th>Check</th></tr>${births.map(([r,i])=>`<tr class="${r.dup?"dup":r.conf?"conf":""}">
     <td>${inp(i,"date_text",95)}</td><td>${inp(i,"mother_name",140)}</td><td>${inp(i,"mother_age",45)}</td><td>${inp(i,"address",130)}</td><td>${sexSel(i)}</td><td>${inp(i,"weight",50)}</td>
-    <td>${esc(r.place_of_event)}</td><td style="min-width:200px">${iss(r)}${dupBox(i)}</td></tr>`).join("")}</table></div>`;
-  if(deaths.length)h+=`<h3>Deaths</h3><div class="scroll"><table class="e"><tr><th>Date</th><th>Name of deceased</th><th>Age</th><th>Sex</th><th>Address</th><th>Cause (as written)</th><th>Check</th></tr>${deaths.map(([r,i])=>`<tr class="${r.dup?"dup":""}">
+    <td>${esc(r.place_of_event)}</td><td style="min-width:220px">${iss(r)}${dupBox(i)}</td></tr>`).join("")}</table></div>`;
+  if(deaths.length)h+=`<h3>Deaths</h3><div class="scroll"><table class="e"><tr><th>Date</th><th>Name of deceased</th><th>Age</th><th>Sex</th><th>Address</th><th>Cause (as written)</th><th>Check</th></tr>${deaths.map(([r,i])=>`<tr class="${r.dup?"dup":r.conf?"conf":""}">
     <td>${inp(i,"date_text",95)}</td><td>${inp(i,"person_name",150)}</td><td>${inp(i,"age_text",65)}</td><td>${sexSel(i)}</td><td>${inp(i,"address",120)}</td><td>${inp(i,"cause",120)}</td>
-    <td style="min-width:200px">${iss(r)}${dupBox(i)}</td></tr>`).join("")}</table></div>`;
+    <td style="min-width:220px">${iss(r)}${dupBox(i)}</td></tr>`).join("")}</table></div>`;
   if(!ROWS.length)h='<p class="hint">Nothing was found.</p>';
-  else h+=`<div class="btns"><button id="check">Check</button><button class="sec" id="addRow">Add a row</button><button id="save" ${ROWS.some(r=>r.checked)?"":"disabled"}>Save as notified</button></div><div id="wMsg" class="hint"></div>`;
-  $("work").innerHTML=h;
+  else h+=`<div class="btns"><button id="check">Check</button><button class="sec" id="addRow">Add a row</button><button id="save" ${canSave()?"":"disabled"}>Save</button></div><div id="wMsg" class="hint">${saveHint()}</div>`;
+  $("work").innerHTML=PHOTO&&ROWS.length?`<div class="split"><div class="phcol"><img src="${PHOTO}" alt="Register photo"><div class="hint">Tap the photo to open it full size.</div></div><div>${h}</div></div>`:h;
+  const pi=document.querySelector(".phcol img");if(pi)pi.onclick=()=>window.open(PHOTO,"_blank");
   document.querySelectorAll("#work [data-i]").forEach(el=>el.onchange=()=>{const r=ROWS[+el.dataset.i];
-    if(el.dataset.f==="dup"){r.dup=el.checked;el.closest("tr").classList.toggle("dup",r.dup);return;}
+    if(el.dataset.f==="dup"||el.dataset.f==="conf"){r[el.dataset.f]=el.checked;el.closest("tr").classList.toggle("dup",!!r.dup);el.closest("tr").classList.toggle("conf",!r.dup&&!!r.conf);updSave();return;}
+    if(el.dataset.f==="unknown"){r.unknown=el.checked;r.checked=false;drawWork();return;}
+    if(el.dataset.f==="followwho"){r.followwho=el.value;return;}
     r[el.dataset.f]=el.value;r.checked=false;const s=$("save");if(s)s.disabled=true;
     if(el.dataset.f!=="dup")el.classList.toggle("chg",changed(r,el.dataset.f));});
   const c=$("check");if(c)c.onclick=()=>{checkAll();drawWork();};
@@ -310,6 +333,7 @@ function checkAll(){
       if(!String(r.age_text).trim())add("warn","Age is missing.");
     }
   });
+  ROWS.forEach(r=>{if(r.unknown)r.issues=r.issues.map(x=>x.s==="error"?{s:"follow",m:"To follow up: "+x.m}:x);});
   // duplicates and twins within this batch
   for(let i=0;i<ROWS.length;i++)for(let j=i+1;j<ROWS.length;j++){const a=ROWS[i],b=ROWS[j];if(a.kind!==b.kind)continue;
     if(a.kind==="birth"&&norm(a.mother_name)&&norm(a.mother_name)===norm(b.mother_name)){
@@ -340,24 +364,23 @@ function checkAll(){
 async function save(){
   const nDup=ROWS.filter(r=>r.dup).length,nNot=ROWS.length-nDup;
   if(nDup&&!confirm(`${nDup} row(s) are ticked as duplicate and will NOT be notified; ${nNot} will be notified. Continue?`))return;
-  const bad=ROWS.filter(r=>!r.dup&&r.issues.some(x=>x.s==="error"));
-  if(bad.length&&!confirm(`${bad.length} row(s) still have errors. Save them anyway as notified (to be corrected later)? Choose Cancel to fix them first.`))return;
+  if(!canSave())return;
   const ev=ROWS.map(r=>({event_type:r.kind,source:SRC,place_of_event:r.place_of_event,event_date:r.iso||"",event_date_text:r.date_text,
     sex:sexOf(r.sex)||"",person_name:r.person_name,mother_name:r.kind==="birth"?r.mother_name:(String(r.person_name).match(/baby\s+of\s+(.+)/i)||[])[1]||"",
     address:r.address,informant_name:r.informant_name,mother_age:r.kind==="birth"&&!isNaN(parseFloat(r.mother_age))?parseFloat(r.mother_age):"",
     birth_weight:!isNaN(parseFloat(r.weight))?parseFloat(r.weight):"",outcome:r.outcome,
     age_value:r.kind==="death"&&!isNaN(parseFloat(r.age_text))?parseFloat(r.age_text):"",
     age_unit:r.kind==="death"?(/day/i.test(r.age_text)?"days":/month/i.test(r.age_text)?"months":/hour/i.test(r.age_text)?"hours":(parseFloat(r.age_text)?"years":"")):"",
-    cause_text:r.cause,multiple_birth:!!r.twin,flags:r.issues,status:r.dup?"duplicate":"notified",synthetic:$("synth").checked,model:MODEL||"",
+    cause_text:r.cause,multiple_birth:!!r.twin,flags:r.issues,status:r.dup?"duplicate":(r.unknown?"draft":"notified"),followup:r.unknown?(r.issues.filter(x=>x.s==="follow").map(x=>x.m.replace("To follow up: ","")).join(" ")+(r.followwho?" Ask: "+r.followwho:"")):"",synthetic:$("synth").checked,model:MODEL||"",
     ai_read:r.ai||null,corrections:corrections(r)}));
   const read=ROWS.filter(r=>r.ai),vals=read.reduce((n,r)=>n+FIELDS.filter(f=>String(r.ai[f]||"").trim()||String(r[f]||"").trim()).length,0),fix=read.reduce((n,r)=>n+corrections(r).length,0);
   $("save").disabled=true;
   const {data,error}=await db.rpc("ven_save",{p_events:ev});
   if(error){$("wMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';$("save").disabled=false;return;}
-  const nd=ROWS.filter(r=>r.dup).length;
-  $("work").innerHTML=`<div class="ok">Saved: ${data-nd} event(s) notified${nd?`, ${nd} kept as duplicate (not counted)`:""}. They now appear on the registrar's list.
+  const nd=ROWS.filter(r=>r.dup).length,nf=ROWS.filter(r=>!r.dup&&r.unknown).length;
+  $("work").innerHTML=`<div class="ok">Saved: ${data-nd-nf} event(s) notified${nf?`, <b>${nf} need follow-up</b> (complete them in Events)`:""}${nd?`, ${nd} kept as duplicate (not counted)`:""}. Notified events now appear on the registrar's list.
     ${read.length?`<br>AI reading: <b>${vals-fix} of ${vals}</b> filled values read correctly${vals?` (${Math.round(100*(vals-fix)/vals)}%)`:""}; <b>${fix}</b> corrected by you, and the corrections are recorded.`:""}</div>`;
-  ROWS=[];$("ph").classList.add("hidden");$("msg").value="";loadList();
+  ROWS=[];PHOTO=null;$("msg").value="";loadList();
 }
 
 // ================= events list =================
@@ -367,11 +390,12 @@ async function loadList(){
   if(error){$("list").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}
   LIST=data||[];drawList();
 }
-const STAT={notified:"notified, not yet registered",registered:"registered",closed:"closed",duplicate:"duplicate",draft:"draft"};
+const STAT={notified:"notified, not yet registered",registered:"registered",closed:"closed",duplicate:"duplicate",draft:"needs follow-up"};
 function filtered(){const t=$("fType").value,s=$("fStat").value;return LIST.filter(e=>(!t||e.event_type===t)&&(!s||(s==="open"?e.status==="notified":e.status===s)));}
 function drawList(){
   const n=(t,s)=>LIST.filter(e=>e.event_type===t&&(!s||e.status===s)).length;
-  $("sum").innerHTML=LIST.length?`Births: ${n("birth","notified")+n("birth","registered")} notified, ${n("birth","registered")} registered, <b>${n("birth","notified")} still to register</b>. Deaths: ${n("death","notified")+n("death","registered")} notified, ${n("death","registered")} registered, <b>${n("death","notified")} still to register</b>.`:"";
+  const nd=LIST.filter(e=>e.status==="draft").length;
+  $("sum").innerHTML=LIST.length?(nd?`<b>${nd} event(s) need follow-up</b> before they can go to the registrar. `:"")+`Births: ${n("birth","notified")+n("birth","registered")} notified, ${n("birth","registered")} registered, <b>${n("birth","notified")} still to register</b>. Deaths: ${n("death","notified")+n("death","registered")} notified, ${n("death","registered")} registered, <b>${n("death","notified")} still to register</b>.`:"";
   const R=LIST.filter(e=>e.ai_read);if(R.length){const v=R.reduce((n,e)=>n+FIELDS.filter(f=>String(e.ai_read[f]||"").trim()).length,0),c=R.reduce((n,e)=>n+(e.corrections||[]).length,0);
     $("sum").innerHTML+=`<br>AI reading so far: ${R.length} event(s) read by AI; <b>${c}</b> value(s) corrected by staff${v?` (about ${Math.max(0,Math.round(100*(v-c)/v))}% read correctly)`:""}.`;}
   const L=filtered();
@@ -391,6 +415,15 @@ function openEv(id){
   const rows=[["Type",e.event_type],["Date",e.event_date?fmt(e.event_date):e.event_date_text],["Name",e.person_name],["Mother",e.mother_name],["Age",e.age_value!=null?e.age_value+" "+(e.age_unit||""):(e.mother_age!=null?"mother "+e.mother_age:"")],
     ["Sex",e.sex],["Address",e.address],["Place",(e.place||"")+" ("+(e.place_of_event||"")+")"],["Cause (as written)",e.cause_text],["Informant",e.informant_name],["Status",STAT[e.status]+(e.npc_reg_no?" · "+e.npc_reg_no:"")]].filter(r=>r[1]);
   $("evPanel").innerHTML=`<div class="ev" style="margin-top:10px"><h3 style="margin:0 0 6px">Event</h3><table class="e">${rows.map(r=>`<tr><th style="width:130px">${r[0]}</th><td>${esc(r[1])}</td></tr>`).join("")}</table>
+    ${e.followup?`<div class="flag follow" style="padding:4px 6px;margin-top:6px"><b>Follow-up:</b> ${esc(e.followup)}</div>`:""}
+    ${e.status==="draft"&&["notifier","informant","admin"].includes(ME.role)?`<div class="ev" style="margin-top:8px"><b>Complete the follow-up</b> <span class="hint">(fill only what you have confirmed; leave the rest blank)</span>
+      <div class="row" style="margin-top:6px"><div><label for="cDate">Date (DD/MM/YYYY)</label><input id="cDate" value="${esc(e.event_date?fmt(e.event_date):e.event_date_text||"")}"></div>
+      <div><label for="cName">${e.event_type==="birth"?"Mother's name":"Name of deceased"}</label><input id="cName" value="${esc(e.event_type==="birth"?e.mother_name||"":e.person_name||"")}"></div></div>
+      <div class="row" style="margin-top:6px"><div><label for="cSex">Sex</label><select id="cSex"><option value="">–</option><option value="female">Female</option><option value="male">Male</option></select></div>
+      <div><label for="cAddr">Address</label><input id="cAddr" value="${esc(e.address||"")}"></div></div>
+      ${e.event_type==="death"?`<div class="row" style="margin-top:6px"><div><label for="cAge">Age (e.g. 68 years, 3 days)</label><input id="cAge" value="${e.age_value!=null?esc(e.age_value+" "+(e.age_unit||"")):""}"></div></div>`:""}
+      <label for="cNote">How it was confirmed</label><input id="cNote" placeholder="e.g. family visited on 30/11">
+      <div class="btns"><button id="cDo">Save and send to the registrar</button></div><div id="cMsg" class="hint"></div></div>`:""}
     ${(e.corrections||[]).length?`<div class="flag info" style="padding:4px 6px;margin-top:6px"><b>Corrected from the AI reading:</b> ${e.corrections.map(c=>`${esc(c.field.replace("_text",""))}: ${c.ai!==undefined?`"${esc(c.ai)}" → "${esc(c.final)}"`:"changed"}`).join("; ")}</div>`:""}
     ${(e.flags||[]).length?`<div style="margin-top:6px">${e.flags.map(f=>`<div class="flag ${f.s==="warn"?"warn":f.s==="info"?"info":""}" style="padding:4px 6px">${esc(f.m)}</div>`).join("")}</div>`:""}
     ${e.purged_at?"":`<div class="row" style="margin-top:8px"><div><label for="rl">Reminder language</label><select id="rl">${COUNTRY.languages.map(l=>`<option>${l}</option>`).join("")}<option>French</option></select></div><div><label for="rp">Registration point (optional)</label><input id="rp" placeholder="e.g. NPC office, LGA secretariat"></div></div>
@@ -399,6 +432,15 @@ function openEv(id){
       canNote?`<div class="row" style="margin-top:8px"><div><label for="rs">Set status</label><select id="rs"><option value="notified">Not yet registered</option><option value="duplicate">Duplicate</option><option value="closed">Closed</option></select></div></div>`:""}
     ${canReg||canNote?`<label for="rnote">Note</label><input id="rnote" value="${esc(e.status_note||"")}"><div class="btns"><button id="rsave">Save status</button><button class="sec" id="rclose">Close</button></div><div id="rmsg" class="hint"></div>`:""}</div>`;
   if($("rs"))$("rs").value=e.status;
+  if($("cSex"))$("cSex").value=e.sex||"";
+  const cd=$("cDo");if(cd)cd.onclick=async()=>{const d=parseDate($("cDate").value);
+    if(!d.ok){$("cMsg").innerHTML='<span class="err">Enter a real date (DD/MM/YYYY) before sending.</span>';return;}
+    if(!$("cName").value.trim()||!$("cSex").value){$("cMsg").innerHTML='<span class="err">The name and sex are needed before the event can go to the registrar.</span>';return;}
+    const f={event_date:d.iso,event_date_text:$("cDate").value.trim(),sex:$("cSex").value,address:$("cAddr").value};
+    f[e.event_type==="birth"?"mother_name":"person_name"]=$("cName").value;
+    if($("cAge")){const a=$("cAge").value;f.age_text=a;f.age_value=isNaN(parseFloat(a))?"":parseFloat(a);f.age_unit=/day/i.test(a)?"days":/month/i.test(a)?"months":/hour/i.test(a)?"hours":(parseFloat(a)?"years":"");}
+    const {error}=await db.rpc("ven_complete",{p_id:id,p_fields:f,p_note:$("cNote").value});
+    if(error){$("cMsg").innerHTML='<span class="err">'+esc(error.message)+'</span>';return;}$("evPanel").innerHTML='<p class="good">Completed and sent to the registrar.</p>';loadList();};
   const rb=$("rem");if(rb)rb.onclick=async()=>{$("remOut").innerHTML='<span class="hint">Drafting…</span>';
     const ev={event_type:e.event_type,date:e.event_date?fmt(e.event_date):e.event_date_text,mother_first_name:(e.mother_name||"").split(" ")[0],deceased:e.person_name?(e.person_name.split(" ")[0]):"",sex:e.sex,twins:e.multiple_birth};
     const r=await db.functions.invoke("ven-ai",{body:{action:"remind",event:ev,language:$("rl").value,place:$("rp").value}});const m=await errMsg(r.data,r.error);
